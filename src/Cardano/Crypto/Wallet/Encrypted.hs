@@ -6,6 +6,7 @@ module Cardano.Crypto.Wallet.Encrypted
     -- * Methods
     , encryptedCreate
     , encryptedCreateDirectWithTweak
+    , encryptedCreateDirectWithoutTweak
     , encryptedChangePass
     , encryptedSign
     , encryptedPublic
@@ -20,12 +21,13 @@ import           Foreign.C.Types
 import           Foreign.Ptr
 
 import           Crypto.Error
-import           Data.ByteArray   (ByteArrayAccess, withByteArray)
-import qualified Data.ByteArray   as B
-import           Data.ByteString  (ByteString)
+import           Data.ByteArray              (ByteArrayAccess, withByteArray)
+import qualified Data.ByteArray              as B
+import           Data.ByteString             (ByteString)
 import           System.IO.Unsafe
 
-import           Cardano.Crypto.Wallet.Types (DerivationScheme(..), DerivationIndex)
+import           Cardano.Crypto.Wallet.Types (DerivationIndex,
+                                              DerivationScheme (..))
 
 totalKeySize :: Int
 totalKeySize = encryptedKeySize + publicKeySize + ccSize
@@ -103,6 +105,19 @@ encryptedCreateDirectWithTweak sec pass =
         withByteArray sec  $ \psec  ->
         withByteArray pass $ \ppass ->
             wallet_encrypted_new_from_mkg ppass (fromIntegral $ B.length pass) psec ekey
+
+-- | Create a new encrypted key using a 64 byte extended private key and a 32 byte chain code.
+encryptedCreateDirectWithoutTweak :: (ByteArrayAccess passphrase, ByteArrayAccess secret, ByteArrayAccess chainCode)
+                                  => secret
+                                  -> chainCode
+                                  -> passphrase
+                                  -> EncryptedKey
+encryptedCreateDirectWithoutTweak sec cc pass =
+    EncryptedKey $ B.allocAndFreeze totalKeySize $ \ekey ->
+        withByteArray sec  $ \psec  ->
+        withByteArray cc $ \pcc  ->
+        withByteArray pass $ \ppass ->
+            wallet_encrypted_initialize ppass (fromIntegral $ B.length pass) psec pcc ekey
 
 -- | Create a new encrypted key that uses a different passphrase
 encryptedChangePass :: (ByteArrayAccess oldPassPhrase, ByteArrayAccess newPassPhrase)
@@ -193,6 +208,13 @@ foreign import ccall "wallet_encrypted_new_from_mkg"
                                   -> Ptr Word8 -- 96 bytes master key generation
                                   -> Ptr EncryptedKey
                                   -> IO ()
+
+foreign import ccall "wallet_encrypted_initialize"
+    wallet_encrypted_initialize :: Ptr PassPhrase -> Word32
+                                -> Ptr Word8 -- 64 bytes "seed secret key" (extended)
+                                -> Ptr Word8 -- 32 bytes ChainCode
+                                -> Ptr EncryptedKey
+                                -> IO ()
 
 foreign import ccall "wallet_encrypted_sign"
     wallet_encrypted_sign :: Ptr EncryptedKey

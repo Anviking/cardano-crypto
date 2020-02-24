@@ -84,7 +84,7 @@ static void unencrypt_stop(ed25519_secret_key decrypted_key)
 	clear(decrypted_key, sizeof(ed25519_secret_key));
 }
 
-static void wallet_encrypted_initialize
+void wallet_encrypted_initialize
     (uint8_t const *pass, uint32_t const pass_len,
      const ed25519_secret_key secret_key,
      const uint8_t cc[CHAIN_CODE_SIZE],
